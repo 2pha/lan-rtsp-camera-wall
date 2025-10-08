@@ -10,6 +10,7 @@ Command to run on machine startup `google-chrome --kiosk http://localhost:8080/`
   
 Notes:  
 1. Only tested on Ubuntu and Chrome.
-2. No sound as MediaMTX did not easily support the sound my Reolink cameras put out. Though you could add this and add a sound button to the html.  
-3. No way to reorder the cameras in the html page itself. You can change the html source to do it (it's just css changes).
+2. You need to edit the rtsp paths in mediamtx.yml.
+3. No sound as MediaMTX did not easily support the sound my Reolink cameras put out. Though you could add this and add a sound button to the html.  
+4. No way to reorder the cameras in the html page itself. You can change the html source to do it (it's just css changes).
 

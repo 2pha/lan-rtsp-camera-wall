@@ -1,0 +1,22 @@
+rtsp: yes
+rtspAddress: :8554
+hls: no
+hlsAlwaysRemux: yes
+webrtc: yes
+webrtcAddress: :8189
+
+paths:
+  cam1:
+    source: "rtsp://admin:password@camera_1_IP:554/h264Preview_01_sub"
+
+  cam2:
+    source: "rtsp://admin:password@camera_2_IP:554/h264Preview_01_sub"
+
+  cam3:
+    source: "rtsp://admin:password@camera_3_IP:554/h264Preview_01_sub"
+
+  cam4:
+    source: "rtsp://admin:password@camera_4_IP:554/h264Preview_01_sub"
+
+  cam5:
+    source: "rtsp://admin:password@camera_5_IP:554/h264Preview_01_sub"

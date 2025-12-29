@@ -203,7 +203,11 @@
       if (draggedEl) {
         draggedEl.classList.remove("dragging");
         draggedEl = null;
-        saveLayout();
+        // Save layout.
+        const order = [...layout_container.children].map(
+          el => el.dataset.path
+        );
+        localStorage.setItem("cameraLayout", JSON.stringify(order));
       }
     });
 
@@ -224,14 +228,6 @@
 
   init();
   setupDraggableOrdering();
-
-  function saveLayout() {
-    const order = [...layout_container.children].map(
-      el => el.dataset.path
-    );
-    localStorage.setItem("cameraLayout", JSON.stringify(order));
-  }
-
 
   (function detectWakeFromSuspend() {
     let lastTime = Date.now();

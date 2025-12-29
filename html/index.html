@@ -133,7 +133,10 @@
         statusEl.textContent = "🔄 reconnecting...";
         setTimeout(() => connectWebRTC(videoEl, path, statusEl, attempt + 1), 5000);
       } else {
-        statusEl.textContent = "❌ Failed to connect";
+        statusEl.textContent = "❌ Failed to connect - click to retry";
+        statusEl.addEventListener('click', () => {
+          connectWebRTC(videoEl, path, statusEl, 1)
+        }, { once: true });
       }
 
     }
@@ -228,7 +231,6 @@
     );
     localStorage.setItem("cameraLayout", JSON.stringify(order));
   }
-
 
 
   (function detectWakeFromSuspend() {

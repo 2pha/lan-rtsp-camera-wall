@@ -22,12 +22,14 @@
         #layout-container {
             display: grid;
             gap: 10px;
-            grid-template-columns: 1fr 1fr 1fr;
-            grid-auto-rows: 1fr 1fr 1fr;
-            grid-template-areas:
-                "cam1 cam1 cam2"
-                "cam1 cam1 cam3"
-                "cam4 cam5 cam6";
+            /*grid-template-columns: 1fr 1fr 1fr;*/
+            /*grid-auto-rows: 1fr 1fr 1fr;*/
+            /*grid-template-areas:*/
+            /*    "cam1 cam1 cam2"*/
+            /*    "cam1 cam1 cam3"*/
+            /*    "cam4 cam5 cam6";*/
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: 1fr;
             height: 100%;
             width: 100%;
         }
@@ -43,6 +45,10 @@
             align-items: center;
             overflow: hidden;
             position: relative;
+        }
+        .cam:first-child {
+            grid-column: span 2;
+            grid-row: span 2;
         }
         .status {
             color: #fff;
@@ -135,10 +141,16 @@
 
   async function init() {
 
-    for (const cam of cameras) {
+    const saved = JSON.parse(localStorage.getItem("cameraLayout") || "null");
+    const orderedCameras = saved
+      ? saved.map(p => cameras.find(c => c.path === p)).filter(Boolean)
+      : cameras;
+
+    for (const cam of orderedCameras) {
       const container = document.createElement("div");
       container.className = "cam";
-      container.style.gridArea = cam.path;
+      container.dataset.path = cam.path;
+      container.draggable = true;
 
       const video = document.createElement("video");
       video.autoplay = true;
@@ -172,7 +184,52 @@
     }
   }
 
+  function setupDraggableOrdering() {
+    let draggedEl = null;
+
+    layout_container.addEventListener("dragstart", (e) => {
+      const cam = e.target.closest(".cam");
+      if (!cam) return;
+
+      draggedEl = cam;
+      cam.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+
+    layout_container.addEventListener("dragend", () => {
+      if (draggedEl) {
+        draggedEl.classList.remove("dragging");
+        draggedEl = null;
+        saveLayout();
+      }
+    });
+
+    layout_container.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const target = e.target.closest(".cam");
+      if (!target || target === draggedEl) return;
+
+      const rect = target.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+
+      layout_container.insertBefore(
+        draggedEl,
+        after ? target.nextSibling : target
+      );
+    });
+  }
+
   init();
+  setupDraggableOrdering();
+
+  function saveLayout() {
+    const order = [...layout_container.children].map(
+      el => el.dataset.path
+    );
+    localStorage.setItem("cameraLayout", JSON.stringify(order));
+  }
+
+
 
   (function detectWakeFromSuspend() {
     let lastTime = Date.now();

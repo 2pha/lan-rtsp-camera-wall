@@ -3,7 +3,12 @@
 <head>
     <meta charset="utf-8" />
     <title>Home Cameras (WebRTC)</title>
+    <script src="drag-drop-touch.esm.js?autoload" type="module"></script>
     <style>
+        html, body, #layout-container, .cam {
+            touch-action: none;
+        }
+
         html {
             height: 100%;
         }
@@ -38,6 +43,7 @@
             height: 100%;
             background: #111;
             border-radius: 8px;
+            pointer-events: none;
         }
         .cam {
             display: flex;
@@ -45,6 +51,12 @@
             align-items: center;
             overflow: hidden;
             position: relative;
+
+            touch-action: none;
+
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-user-drag: element;
         }
         .cam:first-child {
             grid-column: span 2;
@@ -77,171 +89,180 @@
 <div id="layout-container"></div>
 <script>
 
-  // Cams. path value must correspond to paths set in mediamtx.yml.
-  // The path value is also used for the css grid area.
-  const cameras = [
-    { "path": "cam1" },
-    { "path": "cam2" },
-    { "path": "cam3" },
-    { "path": "cam4" },
-    { "path": "cam5" }
-  ];
+    // Cams. path value must correspond to paths set in mediamtx.yml.
+    // The path value is also used for the css grid area.
+    const cameras = [
+        {"path": "cam1"},
+        {"path": "cam2"},
+        {"path": "cam3"},
+        {"path": "cam4"},
+        {"path": "cam5"}
+    ];
 
-  const layout_container = document.getElementById('layout-container');
-  const videoElements = {}; // store video + status + pc
+    const layout_container = document.getElementById('layout-container');
+    const videoElements = {}; // store video + status + pc
 
-  async function connectWebRTC(videoEl, path, statusEl, attempt = 1) {
-    try {
+    async function connectWebRTC(videoEl, path, statusEl, attempt = 1) {
+        try {
 
-      const pc = new RTCPeerConnection();
+            const pc = new RTCPeerConnection();
 
-      pc.ontrack = (event) => {
-        videoEl.srcObject = event.streams[0];
-        statusEl.textContent = "";
-      };
+            pc.ontrack = (event) => {
+                videoEl.srcObject = event.streams[0];
+                statusEl.textContent = "";
+            };
 
-      pc.addTransceiver("video", { direction: "recvonly" });
-      pc.addTransceiver("audio", { direction: "recvonly" });
+            pc.addTransceiver("video", {direction: "recvonly"});
+            pc.addTransceiver("audio", {direction: "recvonly"});
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
 
-      const res = await fetch(`http://${location.hostname}:8189/${path}/whep`, {
-        method: "POST",
-        body: offer.sdp,
-        headers: { "Content-Type": "application/sdp" },
-      });
+            const res = await fetch(`http://${location.hostname}:8189/${path}/whep`, {
+                method: "POST",
+                body: offer.sdp,
+                headers: {"Content-Type": "application/sdp"},
+            });
 
-      const answer = await res.text();
-      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+            const answer = await res.text();
+            await pc.setRemoteDescription({type: "answer", sdp: answer});
 
-      // Reconnect logic
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-          statusEl.textContent = "🔄 reconnecting...";
-          setTimeout(() => connectWebRTC(videoEl, path, statusEl, attempt + 1), 5000);
-        } else if (pc.connectionState === "connected") {
-          statusEl.textContent = "✅";
+            // Reconnect logic
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+                    statusEl.textContent = "🔄 reconnecting...";
+                    setTimeout(() => connectWebRTC(videoEl, path, statusEl, attempt + 1), 5000);
+                } else if (pc.connectionState === "connected") {
+                    statusEl.textContent = "✅";
+                }
+            };
+
+            videoElements[path].pc = pc;
+
+        } catch (err) {
+            if (attempt < 20) {
+                console.error(`[${path}] WebRTC error:`, err);
+                statusEl.textContent = "🔄 reconnecting...";
+                setTimeout(() => connectWebRTC(videoEl, path, statusEl, attempt + 1), 5000);
+            } else {
+                statusEl.textContent = "❌ Failed to connect - click to retry";
+                statusEl.addEventListener('click', () => {
+                    connectWebRTC(videoEl, path, statusEl, 1)
+                }, {once: true});
+            }
+
         }
-      };
-
-      videoElements[path].pc = pc;
-
-    } catch (err) {
-      if (attempt < 20) {
-        console.error(`[${path}] WebRTC error:`, err);
-        statusEl.textContent = "🔄 reconnecting...";
-        setTimeout(() => connectWebRTC(videoEl, path, statusEl, attempt + 1), 5000);
-      } else {
-        statusEl.textContent = "❌ Failed to connect - click to retry";
-        statusEl.addEventListener('click', () => {
-          connectWebRTC(videoEl, path, statusEl, 1)
-        }, { once: true });
-      }
-
     }
-  }
 
-  async function init() {
+    async function init() {
 
-    const saved = JSON.parse(localStorage.getItem("cameraLayout") || "null");
-    const orderedCameras = saved
-      ? saved.map(p => cameras.find(c => c.path === p)).filter(Boolean)
-      : cameras;
+        const saved = JSON.parse(localStorage.getItem("cameraLayout") || "null");
+        const orderedCameras = saved
+            ? saved.map(p => cameras.find(c => c.path === p)).filter(Boolean)
+            : cameras;
 
-    for (const cam of orderedCameras) {
-      const container = document.createElement("div");
-      container.className = "cam";
-      container.dataset.path = cam.path;
-      container.draggable = true;
+        for (const cam of orderedCameras) {
+            const container = document.createElement("div");
+            container.className = "cam";
+            container.dataset.path = cam.path;
+            container.draggable = true;
 
-      const video = document.createElement("video");
-      video.autoplay = true;
-      video.playsInline = true;
-      video.muted = true;
-      video.controls = false;
+            const video = document.createElement("video");
+            video.autoplay = true;
+            video.playsInline = true;
+            video.muted = true;
+            video.controls = false;
 
-      const status = document.createElement("div");
-      status.className = "status";
-      status.textContent = "Connecting...";
+            const status = document.createElement("div");
+            status.className = "status";
+            status.textContent = "Connecting...";
 
-      const fullscreenbtn = document.createElement('button');
-      fullscreenbtn.className = 'fullscreenbtn';
-      fullscreenbtn.textContent = '⛶';
+            const fullscreenbtn = document.createElement('button');
+            fullscreenbtn.className = 'fullscreenbtn';
+            fullscreenbtn.textContent = '⛶';
 
-      fullscreenbtn.addEventListener('click', (e) => {
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        } else {
-          container.requestFullscreen();
+            fullscreenbtn.addEventListener('click', (e) => {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    container.requestFullscreen();
+                }
+            })
+
+            container.appendChild(video);
+            container.appendChild(status);
+            container.appendChild(fullscreenbtn);
+            layout_container.appendChild(container);
+
+            videoElements[cam.path] = {video, status};
+            await connectWebRTC(video, cam.path, status);
         }
-      })
-
-      container.appendChild(video);
-      container.appendChild(status);
-      container.appendChild(fullscreenbtn);
-      layout_container.appendChild(container);
-
-      videoElements[cam.path] = { video, status };
-      await connectWebRTC(video, cam.path, status);
     }
+
+  function swapElements(a, b) {
+      const aNext = a.nextSibling === b ? a : a.nextSibling;
+      b.parentNode.insertBefore(a, b);
+      a.parentNode.insertBefore(b, aNext);
   }
 
   function setupDraggableOrdering() {
-    let draggedEl = null;
+      let draggedEl = null;
 
-    layout_container.addEventListener("dragstart", (e) => {
-      const cam = e.target.closest(".cam");
-      if (!cam) return;
+      layout_container.addEventListener("dragstart", (e) => {
+          const cam = e.target.closest(".cam");
+          if (!cam) return;
 
-      draggedEl = cam;
-      cam.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
-    });
+          draggedEl = cam;
+          cam.classList.add("dragging");
 
-    layout_container.addEventListener("dragend", () => {
-      if (draggedEl) {
-        draggedEl.classList.remove("dragging");
-        draggedEl = null;
-        // Save layout.
-        const order = [...layout_container.children].map(
-          el => el.dataset.path
-        );
-        localStorage.setItem("cameraLayout", JSON.stringify(order));
-      }
-    });
+          // Required for Firefox + polyfill
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", "");
+      });
 
-    layout_container.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      const target = e.target.closest(".cam");
-      if (!target || target === draggedEl) return;
+      layout_container.addEventListener("dragover", (e) => {
+          e.preventDefault(); // allow drop
+      });
 
-      const rect = target.getBoundingClientRect();
-      const after = (e.clientY - rect.top) > rect.height / 2;
+      layout_container.addEventListener("drop", (e) => {
+          e.preventDefault();
 
-      layout_container.insertBefore(
-        draggedEl,
-        after ? target.nextSibling : target
-      );
-    });
+          const target = e.target.closest(".cam");
+          if (!draggedEl || !target || target === draggedEl) return;
+
+          swapElements(draggedEl, target);
+      });
+
+      layout_container.addEventListener("dragend", () => {
+          if (!draggedEl) return;
+
+          draggedEl.classList.remove("dragging");
+
+          const order = [...layout_container.children].map(
+              el => el.dataset.path
+          );
+          localStorage.setItem("cameraLayout", JSON.stringify(order));
+
+          draggedEl = null;
+      });
   }
 
   init();
   setupDraggableOrdering();
 
   (function detectWakeFromSuspend() {
-    let lastTime = Date.now();
-    const checkInterval = 5000; // every 5 seconds
-    const maxGap = 15000;       // gap > 15s means system was asleep
+      let lastTime = Date.now();
+      const checkInterval = 5000; // every 5 seconds
+      const maxGap = 15000;       // gap > 15s means system was asleep
 
-    setInterval(() => {
-      const now = Date.now();
-      if (now - lastTime > maxGap) {
-        console.log("System wake detected — reloading page...");
-        location.reload();
-      }
-      lastTime = now;
-    }, checkInterval);
+      setInterval(() => {
+          const now = Date.now();
+          if (now - lastTime > maxGap) {
+              console.log("System wake detected — reloading page...");
+              location.reload();
+          }
+          lastTime = now;
+      }, checkInterval);
   })();
 </script>
 </body>
